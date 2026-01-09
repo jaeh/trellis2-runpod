@@ -59,6 +59,11 @@ RUN pip install --no-cache-dir \
 # Install nvdiffrast (CUDA extension - requires setuptools, wheel, ninja)
 RUN pip install --no-cache-dir --no-build-isolation git+https://github.com/NVlabs/nvdiffrast.git
 
+# Install cumesh (CUDA mesh operations)
+RUN git clone https://github.com/JeffreyXiang/CuMesh.git /tmp/CuMesh --recursive \
+    && pip install --no-cache-dir --no-build-isolation /tmp/CuMesh \
+    && rm -rf /tmp/CuMesh
+
 # Install flash-attn (optional - improves performance)
 RUN pip install --no-cache-dir flash-attn==2.7.3 || true
 
