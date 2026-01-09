@@ -1,16 +1,18 @@
 """
 TRELLIS.2 RunPod Serverless Handler
-Based on official TRELLIS.2 example.py
+API compatible with mockupWebsite frontend
 
 Usage:
     POST /run with JSON body:
     {
         "input": {
-            "input_image": "https://example.com/image.png" or "base64...",
+            "image": "base64...",
+            "resolution": 512 | 1024 | 1536,
+            "texture_size": 1024 | 2048 | 4096,
+            "output_format": "glb" | "obj" | "ply",
             "seed": 42,
-            "simplify_target": 16777216,
-            "decimation_target": 1000000,
-            "texture_size": 4096
+            "sparse_structure_steps": 20,
+            "slat_sampler_steps": 20
         }
     }
 """
@@ -80,6 +82,15 @@ def load_model():
     return pipeline
 
 
+def decode_base64_image(data: str) -> Image.Image:
+    """Decode base64 image string."""
+    # Remove data URL prefix if present
+    if "," in data:
+        data = data.split(",", 1)[1]
+    image_data = base64.b64decode(data)
+    return Image.open(BytesIO(image_data)).convert("RGBA")
+
+
 def download_image(url: str) -> Image.Image:
     """Download image from URL."""
     response = requests.get(url, timeout=60)
@@ -87,36 +98,32 @@ def download_image(url: str) -> Image.Image:
     return Image.open(BytesIO(response.content)).convert("RGBA")
 
 
-def decode_base64_image(data: str) -> Image.Image:
-    """Decode base64 image string."""
-    if "," in data:
-        data = data.split(",", 1)[1]
-    image_data = base64.b64decode(data)
-    return Image.open(BytesIO(image_data)).convert("RGBA")
-
-
 def handler(job):
     """
     RunPod serverless handler for TRELLIS.2 image-to-3D.
+    API compatible with mockupWebsite frontend.
 
     Input parameters:
-    - input_image: str - URL or base64 encoded image (required)
+    - image: str - Base64 encoded image (required)
+    - resolution: int - 512, 1024, or 1536 (default: 1024)
+    - texture_size: int - 1024, 2048, or 4096 (default: 2048)
+    - output_format: str - "glb", "obj", or "ply" (default: "glb")
     - seed: int - Random seed (default: random)
-    - simplify_target: int - Simplify mesh vertices (default: 16777216)
-    - decimation_target: int - Target triangle count for export (default: 1000000)
-    - texture_size: int - Output texture resolution (default: 4096)
+    - sparse_structure_steps: int - Steps for sparse structure (default: 20)
+    - slat_sampler_steps: int - Steps for SLAT sampler (default: 20)
 
-    Returns:
-    - glb: str - Base64 encoded GLB file
-    - format: str - "glb"
-    - inference_time: float - Time in seconds
+    Returns (matching Trellis2GenerateResponse):
+    - model: str - Base64 encoded GLB/OBJ/PLY
+    - thumbnail: str - Base64 encoded PNG thumbnail
+    - metadata: object - Generation metadata
     """
     job_input = job["input"]
+    start_time = time.time()
 
-    # Validate required input
-    input_image = job_input.get("input_image")
-    if not input_image:
-        return {"error": "input_image is required"}
+    # Get image - support both 'image' (website) and 'input_image' (direct API)
+    image_data = job_input.get("image") or job_input.get("input_image")
+    if not image_data:
+        return {"error": "image is required"}
 
     # Load model (cached after first call)
     runpod.serverless.progress_update(job, "Loading model...")
@@ -125,34 +132,43 @@ def handler(job):
     # Load image
     runpod.serverless.progress_update(job, "Processing image...")
     try:
-        if input_image.startswith(("http://", "https://")):
-            image = download_image(input_image)
+        if image_data.startswith(("http://", "https://")):
+            image = download_image(image_data)
         else:
-            image = decode_base64_image(input_image)
+            image = decode_base64_image(image_data)
     except Exception as e:
         return {"error": f"Failed to load image: {str(e)}"}
 
     print(f"Image size: {image.size}")
 
     # Extract parameters with defaults
+    resolution = job_input.get("resolution", 1024)
+    texture_size = job_input.get("texture_size", 2048)
+    output_format = job_input.get("output_format", "glb")
     seed = job_input.get("seed")
+    sparse_structure_steps = job_input.get("sparse_structure_steps", 20)
+    slat_sampler_steps = job_input.get("slat_sampler_steps", 20)
+
     if seed is None:
         import random
         seed = random.randint(0, 2**32 - 1)
 
-    simplify_target = job_input.get("simplify_target", 16777216)
-    decimation_target = job_input.get("decimation_target", 1000000)
-    texture_size = job_input.get("texture_size", 4096)
+    # Map resolution to simplify target
+    simplify_targets = {512: 4194304, 1024: 16777216, 1536: 16777216}
+    simplify_target = simplify_targets.get(resolution, 16777216)
+
+    # Map resolution to decimation target
+    decimation_targets = {512: 100000, 1024: 500000, 1536: 1000000}
+    decimation_target = decimation_targets.get(resolution, 500000)
 
     # Set seed for reproducibility
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed(seed)
 
-    # Run inference (following official example.py)
+    # Run inference
     runpod.serverless.progress_update(job, "Generating 3D model...")
-    print(f"Running inference: seed={seed}")
-    start_time = time.time()
+    print(f"Running inference: resolution={resolution}, seed={seed}")
 
     try:
         mesh = pipe.run(image)[0]
@@ -163,8 +179,8 @@ def handler(job):
     inference_time = time.time() - start_time
     print(f"Inference completed in {inference_time:.2f}s")
 
-    # Export GLB mesh (following official example.py)
-    runpod.serverless.progress_update(job, "Exporting GLB...")
+    # Export mesh
+    runpod.serverless.progress_update(job, "Exporting 3D model...")
     try:
         import o_voxel
 
@@ -184,30 +200,50 @@ def handler(job):
             verbose=True,
         )
 
-        with tempfile.NamedTemporaryFile(suffix=".glb", delete=False) as f:
-            glb_path = f.name
+        # Export to temp file
+        with tempfile.NamedTemporaryFile(suffix=f".{output_format}", delete=False) as f:
+            model_path = f.name
 
-        glb.export(glb_path, extension_webp=True)
+        if output_format == "glb":
+            glb.export(model_path, extension_webp=True)
+        else:
+            glb.export(model_path)
 
-        with open(glb_path, "rb") as f:
-            glb_base64 = base64.b64encode(f.read()).decode("utf-8")
+        with open(model_path, "rb") as f:
+            model_base64 = base64.b64encode(f.read()).decode("utf-8")
 
-        os.unlink(glb_path)
+        os.unlink(model_path)
+
+        # Generate thumbnail
+        runpod.serverless.progress_update(job, "Generating thumbnail...")
+        thumbnail_base64 = ""
+        try:
+            # Render a simple thumbnail from the mesh
+            # For now, use input image as placeholder thumbnail
+            thumb_buffer = BytesIO()
+            image.thumbnail((256, 256))
+            image.save(thumb_buffer, format="PNG")
+            thumbnail_base64 = base64.b64encode(thumb_buffer.getvalue()).decode("utf-8")
+        except Exception as e:
+            print(f"Thumbnail generation failed: {e}")
 
     except Exception as e:
-        return {"error": f"GLB export failed: {str(e)}"}
+        return {"error": f"Export failed: {str(e)}"}
 
-    glb_size_mb = len(glb_base64) * 3 / 4 / 1024 / 1024
-    print(f"GLB exported: ~{glb_size_mb:.2f}MB")
+    total_time = time.time() - start_time
+    model_size_mb = len(model_base64) * 3 / 4 / 1024 / 1024
+    print(f"Export completed. Model size: ~{model_size_mb:.2f}MB, Total time: {total_time:.2f}s")
 
+    # Return in format expected by website
     return {
-        "glb": glb_base64,
-        "format": "glb",
-        "seed": seed,
-        "texture_size": texture_size,
-        "decimation_target": decimation_target,
-        "inference_time": round(inference_time, 2),
-        "glb_size_mb": round(glb_size_mb, 2),
+        "model": model_base64,
+        "thumbnail": thumbnail_base64,
+        "metadata": {
+            "triangle_count": decimation_target,
+            "texture_resolution": f"{texture_size}x{texture_size}",
+            "generation_time_ms": int(total_time * 1000),
+            "voxel_resolution": str(resolution),
+        },
     }
 
 
