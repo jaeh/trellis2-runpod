@@ -1,9 +1,6 @@
 """
 TRELLIS.2 RunPod Serverless Handler
-Following RunPod best practices:
-- Model initialized OUTSIDE handler (loaded once at startup)
-- Uses RunPod's built-in model caching
-- Progress updates via runpod.serverless.progress_update()
+Based on official TRELLIS.2 example.py
 
 Usage:
     POST /run with JSON body:
@@ -11,9 +8,9 @@ Usage:
         "input": {
             "input_image": "https://example.com/image.png" or "base64...",
             "seed": 42,
-            "pipeline_type": "512" | "1024_cascade" | "1536_cascade",
-            "texture_size": 1024,
-            "decimation_target": 20000
+            "simplify_target": 16777216,
+            "decimation_target": 1000000,
+            "texture_size": 4096
         }
     }
 """
@@ -42,10 +39,7 @@ pipeline = None
 
 
 def find_cached_model_path(model_name: str) -> str | None:
-    """
-    Find model path in RunPod's cache directory.
-    RunPod caches HuggingFace models at /runpod-volume/huggingface-cache/hub/
-    """
+    """Find model path in RunPod's cache directory."""
     cache_name = model_name.replace("/", "--")
     snapshots_dir = os.path.join(CACHE_DIR, f"models--{cache_name}", "snapshots")
 
@@ -57,10 +51,7 @@ def find_cached_model_path(model_name: str) -> str | None:
 
 
 def load_model():
-    """
-    Load TRELLIS.2 model into GPU memory.
-    Uses RunPod's model caching - model should be pre-cached by RunPod.
-    """
+    """Load TRELLIS.2 model into GPU memory."""
     global pipeline
 
     if pipeline is not None:
@@ -78,7 +69,6 @@ def load_model():
         print(f"Loading from RunPod cache: {cached_path}")
         pipeline = Trellis2ImageTo3DPipeline.from_pretrained(cached_path)
     else:
-        # Fallback: download from HuggingFace (RunPod will cache it)
         print(f"Model not in cache, downloading: {HF_MODEL_ID}")
         pipeline = Trellis2ImageTo3DPipeline.from_pretrained(HF_MODEL_ID)
 
@@ -94,7 +84,7 @@ def download_image(url: str) -> Image.Image:
     """Download image from URL."""
     response = requests.get(url, timeout=60)
     response.raise_for_status()
-    return Image.open(BytesIO(response.content)).convert("RGB")
+    return Image.open(BytesIO(response.content)).convert("RGBA")
 
 
 def decode_base64_image(data: str) -> Image.Image:
@@ -102,7 +92,7 @@ def decode_base64_image(data: str) -> Image.Image:
     if "," in data:
         data = data.split(",", 1)[1]
     image_data = base64.b64decode(data)
-    return Image.open(BytesIO(image_data)).convert("RGB")
+    return Image.open(BytesIO(image_data)).convert("RGBA")
 
 
 def handler(job):
@@ -112,9 +102,9 @@ def handler(job):
     Input parameters:
     - input_image: str - URL or base64 encoded image (required)
     - seed: int - Random seed (default: random)
-    - pipeline_type: str - "512", "1024_cascade", or "1536_cascade" (default: "512")
-    - texture_size: int - Output texture resolution (default: 1024)
-    - decimation_target: int - Target triangle count (default: 20000)
+    - simplify_target: int - Simplify mesh vertices (default: 16777216)
+    - decimation_target: int - Target triangle count for export (default: 1000000)
+    - texture_size: int - Output texture resolution (default: 4096)
 
     Returns:
     - glb: str - Base64 encoded GLB file
@@ -150,87 +140,48 @@ def handler(job):
         import random
         seed = random.randint(0, 2**32 - 1)
 
-    pipeline_type = job_input.get("pipeline_type", "512")
-    texture_size = job_input.get("texture_size", 1024)
-    decimation_target = job_input.get("decimation_target", 20000)
-
-    # Sampler parameters
-    ss_sampling_steps = job_input.get("ss_sampling_steps", 20)
-    ss_guidance_strength = job_input.get("ss_guidance_strength", 10.0)
-    ss_guidance_rescale = job_input.get("ss_guidance_rescale", 0.5)
-    ss_rescale_t = job_input.get("ss_rescale_t", 0.35)
-
-    shape_slat_sampling_steps = job_input.get("shape_slat_sampling_steps", 20)
-    shape_slat_guidance_strength = job_input.get("shape_slat_guidance_strength", 5.0)
-    shape_slat_guidance_rescale = job_input.get("shape_slat_guidance_rescale", 0.5)
-    shape_slat_rescale_t = job_input.get("shape_slat_rescale_t", 0.35)
-
-    tex_slat_sampling_steps = job_input.get("tex_slat_sampling_steps", 20)
-    tex_slat_guidance_strength = job_input.get("tex_slat_guidance_strength", 3.0)
-    tex_slat_guidance_rescale = job_input.get("tex_slat_guidance_rescale", 0.5)
-    tex_slat_rescale_t = job_input.get("tex_slat_rescale_t", 0.35)
+    simplify_target = job_input.get("simplify_target", 16777216)
+    decimation_target = job_input.get("decimation_target", 1000000)
+    texture_size = job_input.get("texture_size", 4096)
 
     # Set seed for reproducibility
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed(seed)
 
-    # Run inference
-    runpod.serverless.progress_update(job, f"Generating 3D model ({pipeline_type})...")
-    print(f"Running inference: pipeline_type={pipeline_type}, seed={seed}")
+    # Run inference (following official example.py)
+    runpod.serverless.progress_update(job, "Generating 3D model...")
+    print(f"Running inference: seed={seed}")
     start_time = time.time()
 
     try:
-        outputs, latents = pipe.run(
-            image,
-            seed=seed,
-            preprocess_image=True,
-            sparse_structure_sampler_params={
-                "steps": ss_sampling_steps,
-                "guidance_strength": ss_guidance_strength,
-                "guidance_rescale": ss_guidance_rescale,
-                "rescale_t": ss_rescale_t,
-            },
-            shape_slat_sampler_params={
-                "steps": shape_slat_sampling_steps,
-                "guidance_strength": shape_slat_guidance_strength,
-                "guidance_rescale": shape_slat_guidance_rescale,
-                "rescale_t": shape_slat_rescale_t,
-            },
-            tex_slat_sampler_params={
-                "steps": tex_slat_sampling_steps,
-                "guidance_strength": tex_slat_guidance_strength,
-                "guidance_rescale": tex_slat_guidance_rescale,
-                "rescale_t": tex_slat_rescale_t,
-            },
-            pipeline_type=pipeline_type,
-            return_latent=True,
-        )
+        mesh = pipe.run(image)[0]
+        mesh.simplify(simplify_target)
     except Exception as e:
         return {"error": f"Inference failed: {str(e)}"}
 
     inference_time = time.time() - start_time
     print(f"Inference completed in {inference_time:.2f}s")
 
-    # Export GLB mesh
+    # Export GLB mesh (following official example.py)
     runpod.serverless.progress_update(job, "Exporting GLB...")
     try:
-        from trellis2.representations import o_voxel
-
-        shape_slat, tex_slat, res = outputs
-        mesh = pipe.decode_latent(shape_slat, tex_slat, res)[0]
+        import o_voxel
 
         glb = o_voxel.postprocess.to_glb(
             vertices=mesh.vertices,
             faces=mesh.faces,
             attr_volume=mesh.attrs,
             coords=mesh.coords,
-            attr_layout=pipe.pbr_attr_layout,
-            grid_size=res,
+            attr_layout=mesh.layout,
+            voxel_size=mesh.voxel_size,
             aabb=[[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]],
             decimation_target=decimation_target,
             texture_size=texture_size,
             remesh=True,
+            remesh_band=1,
+            remesh_project=0,
+            verbose=True,
         )
 
         with tempfile.NamedTemporaryFile(suffix=".glb", delete=False) as f:
@@ -253,7 +204,6 @@ def handler(job):
         "glb": glb_base64,
         "format": "glb",
         "seed": seed,
-        "pipeline_type": pipeline_type,
         "texture_size": texture_size,
         "decimation_target": decimation_target,
         "inference_time": round(inference_time, 2),
@@ -262,7 +212,6 @@ def handler(job):
 
 
 # Initialize model at worker startup (RunPod best practice)
-# This runs ONCE when the container starts, not on every request
 print("=" * 50)
 print("TRELLIS.2 RunPod Worker Starting...")
 print("=" * 50)
