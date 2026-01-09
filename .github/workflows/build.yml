@@ -2,9 +2,8 @@ name: Build and Push Docker Image
 
 on:
   push:
-    paths:
-      - 'docker/trellis2-runpod/**'
-  workflow_dispatch:  # Manual trigger
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -25,8 +24,8 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
-          context: ./docker/trellis2-runpod
-          file: ./docker/trellis2-runpod/Dockerfile
+          context: .
+          file: ./Dockerfile
           push: true
           tags: wearebravelabs/trellis2-runpod:latest
           platforms: linux/amd64
