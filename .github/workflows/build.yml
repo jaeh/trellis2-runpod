@@ -46,4 +46,5 @@ jobs:
           push: true
           tags: wearebravelabs/trellis2-runpod:latest
           platforms: linux/amd64
-          no-cache: true
+          cache-from: type=registry,ref=wearebravelabs/trellis2-runpod:buildcache
+          cache-to: type=registry,ref=wearebravelabs/trellis2-runpod:buildcache,mode=max
