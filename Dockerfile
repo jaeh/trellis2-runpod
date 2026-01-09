@@ -6,6 +6,7 @@ FROM runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+ENV OPENCV_IO_ENABLE_OPENEXR=1
 ENV HF_HOME=/runpod-volume/huggingface-cache
 ENV CUDA_HOME=/usr/local/cuda
 ENV PATH="${CUDA_HOME}/bin:${PATH}"
@@ -56,11 +57,15 @@ RUN pip install --no-cache-dir \
     open3d \
     git+https://github.com/EasternJournalist/utils3d.git
 
-# Install nvdiffrast (CUDA extension - requires setuptools, wheel, ninja)
-RUN pip install --no-cache-dir --no-build-isolation git+https://github.com/NVlabs/nvdiffrast.git
+# Install nvdiffrast v0.4.0 (CUDA extension - requires setuptools, wheel, ninja)
+RUN git clone -b v0.4.0 https://github.com/NVlabs/nvdiffrast.git /tmp/nvdiffrast \
+    && pip install --no-cache-dir --no-build-isolation /tmp/nvdiffrast \
+    && rm -rf /tmp/nvdiffrast
 
-# Install nvdiffrec (renderutils)
-RUN pip install --no-cache-dir --no-build-isolation git+https://github.com/NVlabs/nvdiffrec.git#subdirectory=renderutils
+# Install nvdiffrec (renderutils) - using JeffreyXiang's fork as required by TRELLIS.2
+RUN git clone -b renderutils https://github.com/JeffreyXiang/nvdiffrec.git /tmp/nvdiffrec \
+    && pip install --no-cache-dir --no-build-isolation /tmp/nvdiffrec \
+    && rm -rf /tmp/nvdiffrec
 
 # Install cumesh (CUDA mesh operations)
 RUN git clone https://github.com/JeffreyXiang/CuMesh.git /tmp/CuMesh --recursive \

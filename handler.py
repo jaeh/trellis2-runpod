@@ -161,17 +161,23 @@ def handler(job):
     decimation_targets = {512: 100000, 1024: 500000, 1536: 1000000}
     decimation_target = decimation_targets.get(resolution, 500000)
 
-    # Set seed for reproducibility
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed(seed)
+    # Map resolution to pipeline_type (TRELLIS.2 API requirement)
+    pipeline_types = {512: "512", 1024: "1024_cascade", 1536: "1536_cascade"}
+    pipeline_type = pipeline_types.get(resolution, "1024_cascade")
 
     # Run inference
     runpod.serverless.progress_update(job, "Generating 3D model...")
-    print(f"Running inference: resolution={resolution}, seed={seed}")
+    print(f"Running inference: resolution={resolution}, pipeline_type={pipeline_type}, seed={seed}")
 
     try:
-        mesh = pipe.run(image)[0]
+        mesh = pipe.run(
+            image,
+            seed=seed,
+            pipeline_type=pipeline_type,
+            sparse_structure_sampler_params={"num_steps": sparse_structure_steps},
+            shape_slat_sampler_params={"num_steps": slat_sampler_steps},
+            tex_slat_sampler_params={"num_steps": slat_sampler_steps},
+        )[0]
         mesh.simplify(simplify_target)
     except Exception as e:
         return {"error": f"Inference failed: {str(e)}"}
