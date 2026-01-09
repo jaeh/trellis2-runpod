@@ -59,6 +59,9 @@ RUN pip install --no-cache-dir \
 # Install nvdiffrast (CUDA extension - requires setuptools, wheel, ninja)
 RUN pip install --no-cache-dir --no-build-isolation git+https://github.com/NVlabs/nvdiffrast.git
 
+# Install nvdiffrec (renderutils)
+RUN pip install --no-cache-dir --no-build-isolation git+https://github.com/NVlabs/nvdiffrec.git#subdirectory=renderutils
+
 # Install cumesh (CUDA mesh operations)
 RUN git clone https://github.com/JeffreyXiang/CuMesh.git /tmp/CuMesh --recursive \
     && pip install --no-cache-dir --no-build-isolation /tmp/CuMesh \
