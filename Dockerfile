@@ -64,11 +64,19 @@ RUN git clone https://github.com/JeffreyXiang/CuMesh.git /tmp/CuMesh --recursive
     && pip install --no-cache-dir --no-build-isolation /tmp/CuMesh \
     && rm -rf /tmp/CuMesh
 
+# Install FlexGEMM (CUDA GEMM operations)
+RUN git clone https://github.com/JeffreyXiang/FlexGEMM.git /tmp/FlexGEMM --recursive \
+    && pip install --no-cache-dir --no-build-isolation /tmp/FlexGEMM \
+    && rm -rf /tmp/FlexGEMM
+
 # Install flash-attn (improves performance)
 RUN pip install --no-cache-dir --no-build-isolation flash-attn==2.7.3
 
 # Clone TRELLIS.2
 RUN git clone --recursive https://github.com/microsoft/TRELLIS.2.git /app/TRELLIS.2
+
+# Install o-voxel from TRELLIS.2
+RUN pip install --no-cache-dir --no-build-isolation /app/TRELLIS.2/o-voxel
 
 # Add TRELLIS.2 to Python path (it's not a pip package)
 ENV PYTHONPATH="/app/TRELLIS.2:${PYTHONPATH}"
