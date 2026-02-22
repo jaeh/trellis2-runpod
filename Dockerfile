@@ -79,8 +79,9 @@ RUN git clone https://github.com/JeffreyXiang/FlexGEMM.git /tmp/FlexGEMM --recur
     && pip install --no-cache-dir --no-build-isolation /tmp/FlexGEMM \
     && rm -rf /tmp/FlexGEMM
 
-# Install flash-attn from PyTorch index (auto-selects correct wheel for CUDA 12.8 + PyTorch 2.8)
-RUN pip install --no-cache-dir flash-attn --index-url https://download.pytorch.org/whl/cu128
+# Install flash-attn from pre-built wheel (v2.8.3 for CUDA 12.8 + PyTorch 2.8)
+RUN pip install --no-cache-dir \
+    https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.7.16/flash_attn-2.8.3%2Bcu128torch2.8-cp311-cp311-linux_x86_64.whl
 
 # Clone TRELLIS.2
 RUN git clone --recursive https://github.com/microsoft/TRELLIS.2.git /app/TRELLIS.2
@@ -92,7 +93,7 @@ RUN pip install --no-cache-dir --no-build-isolation /app/TRELLIS.2/o-voxel
 RUN python -c "from huggingface_hub import snapshot_download; snapshot_download('microsoft/TRELLIS.2-4B', local_dir='/app/TRELLIS.2-4B')"
 
 # Add TRELLIS.2 to Python path (it's not a pip package)
-ENV PYTHONPATH="/app/TRELLIS.2${PYTHONPATH:+:$PYTHONPATH}"
+ENV PYTHONPATH="/app/TRELLIS.2"
 ENV TRELLIS_PATH=/app/TRELLIS.2
 
 # Copy handler
