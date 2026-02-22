@@ -33,7 +33,10 @@ RUN rm -rf /usr/lib/python3/dist-packages/blinker* || true
 # Install build tools first (required for nvdiffrast)
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel ninja
 
-# Install Python dependencies
+# Pin PyTorch to 2.6.0 with CUDA 12.4 for compatibility with flash-attn wheel
+RUN pip install --no-cache-dir torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu124
+
+# Install Python dependencies (excluding torch/torchvision as they're pinned above)
 RUN pip install --no-cache-dir \
     runpod \
     huggingface_hub \
@@ -79,8 +82,9 @@ RUN git clone https://github.com/JeffreyXiang/FlexGEMM.git /tmp/FlexGEMM --recur
     && rm -rf /tmp/FlexGEMM
 
 # Install flash-attn from pre-built wheel (avoids 30+ min compilation)
-RUN pip install --no-cache-dir flash-attn --no-build-isolation \
-    -f https://github.com/Dao-AILab/flash-attention/releases/expanded_assets/v2.7.3
+# Using torch 2.6.0 + cu12 wheel from official release
+RUN pip install --no-cache-dir \
+    https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.3/flash_attn-2.7.3+cu12torch2.6cxx11abiFALSE-cp311-cp311-linux_x86_64.whl
 
 # Clone TRELLIS.2
 RUN git clone --recursive https://github.com/microsoft/TRELLIS.2.git /app/TRELLIS.2
