@@ -1,5 +1,5 @@
 # TRELLIS.2 RunPod Serverless
-# - Model pre-downloaded to RunPod volume at build time
+# - Model baked into container at build time (~12GB image)
 
 FROM runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04
 
@@ -91,9 +91,8 @@ RUN git clone --recursive https://github.com/microsoft/TRELLIS.2.git /app/TRELLI
 # Install o-voxel from TRELLIS.2
 RUN pip install --no-cache-dir --no-build-isolation /app/TRELLIS.2/o-voxel
 
-# Pre-download TRELLIS.2-4B model to RunPod volume
-RUN mkdir -p /runpod-volume/huggingface-cache/hub && \
-    python -c "from huggingface_hub import snapshot_download; snapshot_download('microsoft/TRELLIS.2-4B')"
+# Pre-download TRELLIS.2-4B model to container
+RUN python -c "from huggingface_hub import snapshot_download; snapshot_download('microsoft/TRELLIS.2-4B', local_dir='/app/TRELLIS.2-4B')"
 
 # Add TRELLIS.2 to Python path (it's not a pip package)
 ENV PYTHONPATH="/app/TRELLIS.2${PYTHONPATH:+:$PYTHONPATH}"

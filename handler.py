@@ -32,8 +32,8 @@ from PIL import Image
 TRELLIS_PATH = os.environ.get("TRELLIS_PATH", "/app/TRELLIS.2")
 sys.path.insert(0, TRELLIS_PATH)
 
-# RunPod model cache configuration
-HF_MODEL_ID = "microsoft/TRELLIS.2-4B"
+# Model path - baked into container at build time
+LOCAL_MODEL_PATH = "/app/TRELLIS.2-4B"
 
 # Global pipeline - initialized once at worker startup
 pipeline = None
@@ -51,9 +51,9 @@ def load_model():
 
     from trellis2.pipelines import Trellis2ImageTo3DPipeline
 
-    # Use HuggingFace model ID directly - RunPod will cache it
-    print(f"Loading model: {HF_MODEL_ID}")
-    pipeline = Trellis2ImageTo3DPipeline.from_pretrained(HF_MODEL_ID)
+    # Load from local path (baked into container)
+    print(f"Loading model from: {LOCAL_MODEL_PATH}")
+    pipeline = Trellis2ImageTo3DPipeline.from_pretrained(LOCAL_MODEL_PATH)
 
     pipeline.cuda()
 
