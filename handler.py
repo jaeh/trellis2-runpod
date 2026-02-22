@@ -49,14 +49,86 @@ def load_model():
     print("Loading TRELLIS.2 model...")
     start_time = time.time()
 
-    # Debug: print pipeline module info
+    # Debug: print environment info
     import os
+
+    print("=" * 50)
+    print("DEBUG INFO:")
+    print("=" * 50)
     print("TRELLIS_PATH:", TRELLIS_PATH)
+    print("PYTHONPATH:", os.environ.get("PYTHONPATH"))
+    print("sys.path[0]:", sys.path[0])
+    print("sys.path:", sys.path[:3])
+
+    # Check if torchvision is available
+    try:
+        import torchvision
+
+        print(f"torchvision version: {torchvision.__version__}")
+    except Exception as e:
+        print(f"torchvision import error: {e}")
+
+    # Check trellis2 module
+    try:
+        import trellis2
+
+        print(f"trellis2 imported from: {trellis2.__file__}")
+    except Exception as e:
+        print(f"trellis2 import error: {e}")
+
+    # Check pipelines directory
     print("Pipelines dir exists:", os.path.exists(f"{TRELLIS_PATH}/trellis2/pipelines"))
     if os.path.exists(f"{TRELLIS_PATH}/trellis2/pipelines"):
         print("Files in pipelines:", os.listdir(f"{TRELLIS_PATH}/trellis2/pipelines"))
 
-    from trellis2.pipelines import Trellis2ImageTo3DPipeline
+        # Read __init__.py
+        init_path = f"{TRELLIS_PATH}/trellis2/pipelines/__init__.py"
+        if os.path.exists(init_path):
+            try:
+                with open(init_path) as f:
+                    print("__init__.py content:", f.read())
+            except Exception as e:
+                print(f"Error reading __init__.py: {e}")
+
+        # Also check the actual module file
+        module_path = f"{TRELLIS_PATH}/trellis2/pipelines/trellis2_image_to_3d.py"
+        if os.path.exists(module_path):
+            try:
+                with open(module_path) as f:
+                    content = f.read()
+                    # Find class definition
+                    if "class Trellis2ImageTo3D" in content:
+                        print(
+                            "Found class 'Trellis2ImageTo3D' in trellis2_image_to_3d.py"
+                        )
+                    if "class Trellis2ImageTo3DPipeline" in content:
+                        print(
+                            "Found class 'Trellis2ImageTo3DPipeline' in trellis2_image_to_3d.py"
+                        )
+                    else:
+                        print("No matching class found in trellis2_image_to_3d.py")
+            except Exception as e:
+                print(f"Error reading module: {e}")
+
+    print("=" * 50)
+    print("ATTEMPTING IMPORT:")
+    print("=" * 50)
+
+    # Try direct import from module file
+    print("Attempting to import Trellis2ImageTo3DPipeline...")
+    try:
+        from trellis2.pipelines.trellis2_image_to_3d import Trellis2ImageTo3DPipeline
+
+        print("SUCCESS: Direct import worked!")
+    except Exception as e:
+        print(f"Direct import failed: {e}")
+        try:
+            from trellis2.pipelines import Trellis2ImageTo3DPipeline
+
+            print("SUCCESS: Fallback import worked!")
+        except Exception as e2:
+            print(f"Fallback import also failed: {e2}")
+            raise
 
     # Load from local path (baked into container)
     print(f"Loading model from: {LOCAL_MODEL_PATH}")
@@ -139,6 +211,7 @@ def handler(job):
 
     if seed is None:
         import random
+
         seed = random.randint(0, 2**32 - 1)
 
     # Map resolution to simplify target
@@ -155,7 +228,9 @@ def handler(job):
 
     # Run inference
     runpod.serverless.progress_update(job, "Generating 3D model...")
-    print(f"Running inference: resolution={resolution}, pipeline_type={pipeline_type}, seed={seed}")
+    print(
+        f"Running inference: resolution={resolution}, pipeline_type={pipeline_type}, seed={seed}"
+    )
 
     try:
         mesh = pipe.run(
@@ -226,7 +301,9 @@ def handler(job):
 
     total_time = time.time() - start_time
     model_size_mb = len(model_base64) * 3 / 4 / 1024 / 1024
-    print(f"Export completed. Model size: ~{model_size_mb:.2f}MB, Total time: {total_time:.2f}s")
+    print(
+        f"Export completed. Model size: ~{model_size_mb:.2f}MB, Total time: {total_time:.2f}s"
+    )
 
     # Return in format expected by website
     return {

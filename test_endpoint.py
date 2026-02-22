@@ -44,7 +44,9 @@ def check_status(endpoint_id: str, api_key: str, job_id: str) -> dict:
     return response.json()
 
 
-def wait_for_completion(endpoint_id: str, api_key: str, job_id: str, timeout: int = 300) -> dict:
+def wait_for_completion(
+    endpoint_id: str, api_key: str, job_id: str, timeout: int = 300
+) -> dict:
     """Poll for job completion."""
     start = time.time()
 
@@ -72,7 +74,9 @@ def main():
     parser.add_argument("--image", required=True, help="Path to input image or URL")
     parser.add_argument("--output", default="output.glb", help="Output GLB path")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
-    parser.add_argument("--pipeline", default="512", choices=["512", "1024_cascade", "1536_cascade"])
+    parser.add_argument(
+        "--pipeline", default="512", choices=["512", "1024_cascade", "1536_cascade"]
+    )
     parser.add_argument("--texture-size", type=int, default=1024)
     parser.add_argument("--timeout", type=int, default=300, help="Timeout in seconds")
     args = parser.parse_args()
