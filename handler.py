@@ -49,6 +49,13 @@ def load_model():
     print("Loading TRELLIS.2 model...")
     start_time = time.time()
 
+    # Debug: print pipeline module info
+    import os
+    print("TRELLIS_PATH:", TRELLIS_PATH)
+    print("Pipelines dir exists:", os.path.exists(f"{TRELLIS_PATH}/trellis2/pipelines"))
+    if os.path.exists(f"{TRELLIS_PATH}/trellis2/pipelines"):
+        print("Files in pipelines:", os.listdir(f"{TRELLIS_PATH}/trellis2/pipelines"))
+
     from trellis2.pipelines import Trellis2ImageTo3DPipeline
 
     # Load from local path (baked into container)

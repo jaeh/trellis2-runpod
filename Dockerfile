@@ -79,9 +79,8 @@ RUN git clone https://github.com/JeffreyXiang/FlexGEMM.git /tmp/FlexGEMM --recur
     && pip install --no-cache-dir --no-build-isolation /tmp/FlexGEMM \
     && rm -rf /tmp/FlexGEMM
 
-# Install flash-attn from pre-built wheel (CUDA 12.8 + PyTorch 2.8)
-RUN pip install --no-cache-dir \
-    https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.7.16/flash_attn-2.7.4+cu128torch2.8-cp311-cp311-linux_x86_64.whl
+# Install flash-attn from PyTorch index (auto-selects correct wheel for CUDA 12.8 + PyTorch 2.8)
+RUN pip install --no-cache-dir flash-attn --index-url https://download.pytorch.org/whl/cu128
 
 # Clone TRELLIS.2
 RUN git clone --recursive https://github.com/microsoft/TRELLIS.2.git /app/TRELLIS.2
