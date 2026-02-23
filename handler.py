@@ -99,6 +99,14 @@ def load_model():
     os.environ["HF_DATASETS_CACHE"] = CACHE_DIR
     os.environ["TRANSFORMERS_CACHE"] = CACHE_DIR
 
+    import torch
+    print(f"PyTorch version: {torch.__version__}")
+    print(f"CUDA available: {torch.cuda.is_available()}")
+    if torch.cuda.is_available():
+        print(f"CUDA device: {torch.cuda.get_device_name(0)}")
+    else:
+        raise RuntimeError("CUDA is not available. Check GPU availability in RunPod.")
+
     os.makedirs(CACHE_DIR, exist_ok=True)
     print(f"Cache dir: {CACHE_DIR}")
 
