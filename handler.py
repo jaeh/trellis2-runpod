@@ -80,11 +80,9 @@ def load_model():
             "Get a token at https://huggingface.co/settings/tokens"
         )
 
-    print(f"HF_TOKEN: {'set' if hf_token else 'not set'} (length: {len(hf_token) if hf_token else 0})")
-    print(f"HuggingFace token type: {type(hf_token)}")
-
     os.environ["HF_HOME"] = CACHE_DIR
     os.environ["HUGGINGFACE_HUB_CACHE"] = CACHE_DIR
+    os.environ["HF_TOKEN"] = hf_token
 
     print(f"Model ID: {HF_MODEL_ID}")
     print(f"Cache dir: {CACHE_DIR}")
@@ -98,10 +96,10 @@ def load_model():
     if cached_path and validate_cache_exists():
         print(f"Loading from RunPod cache: {cached_path}")
         print(f"Cache contents: {os.listdir(cached_path) if os.path.exists(cached_path) else 'N/A'}")
-        pipeline = Trellis2ImageTo3DPipeline.from_pretrained(cached_path, token=hf_token)
+        pipeline = Trellis2ImageTo3DPipeline.from_pretrained(cached_path)
     else:
         print(f"Model not in cache, downloading from HuggingFace...")
-        pipeline = Trellis2ImageTo3DPipeline.from_pretrained(HF_MODEL_ID, token=hf_token)
+        pipeline = Trellis2ImageTo3DPipeline.from_pretrained(HF_MODEL_ID)
 
     pipeline.cuda()
 
