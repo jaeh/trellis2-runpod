@@ -23,8 +23,6 @@ import sys
 import base64
 import tempfile
 import time
-# Import torchvision BEFORE torch to avoid circular import issues with TRELLIS
-import torchvision
 import torch
 import requests
 from io import BytesIO

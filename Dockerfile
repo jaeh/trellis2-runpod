@@ -32,7 +32,8 @@ RUN rm -rf /usr/lib/python3/dist-packages/blinker* || true
 # Install build tools first (required for nvdiffrast)
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel ninja
 
-# Install Python dependencies (PyTorch 2.8 is pre-installed in base image)
+# Install torch and torchvision (ensure compatible versions)
+RUN pip install --no-cache-dir torch==2.8.0 torchvision==0.23.0 --index-url https://download.pytorch.org/whl/cu128
 RUN pip install --no-cache-dir \
     runpod \
     huggingface_hub \
