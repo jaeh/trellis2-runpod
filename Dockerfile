@@ -1,7 +1,7 @@
 # TRELLIS.2 RunPod Serverless
 # - Model baked into container at build time (~12GB image)
 
-FROM runpod/pytorch:2.8.0-py3.11-cuda12.8.1-cudnn-devel-ubuntu22.04
+FROM runpod/pytorch:2.6.0-py3.11-cuda12.6.1-cudnn-devel-ubuntu22.04
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
@@ -32,8 +32,8 @@ RUN rm -rf /usr/lib/python3/dist-packages/blinker* || true
 # Install build tools first (required for nvdiffrast)
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel ninja
 
-# Install torch and torchvision (ensure compatible versions)
-RUN pip install --no-cache-dir torch==2.8.0 torchvision==0.23.0 --index-url https://download.pytorch.org/whl/cu128
+# Install torch and torchvision (CUDA 12.6 compatible versions)
+RUN pip install --no-cache-dir torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cu126
 RUN pip install --no-cache-dir \
     runpod \
     huggingface_hub \
@@ -57,8 +57,8 @@ RUN pip install --no-cache-dir \
     open3d \
     git+https://github.com/EasternJournalist/utils3d.git
 
-# Install xformers with correct CUDA 12.8 index
-RUN pip install --no-cache-dir xformers --index-url https://download.pytorch.org/whl/cu128
+# Install xformers with correct CUDA 12.6 index
+RUN pip install --no-cache-dir xformers --index-url https://download.pytorch.org/whl/cu126
 
 # Install nvdiffrast v0.4.0 (CUDA extension - requires setuptools, wheel, ninja)
 RUN git clone -b v0.4.0 https://github.com/NVlabs/nvdiffrast.git /tmp/nvdiffrast \
@@ -80,9 +80,9 @@ RUN git clone https://github.com/JeffreyXiang/FlexGEMM.git /tmp/FlexGEMM --recur
     && pip install --no-cache-dir --no-build-isolation /tmp/FlexGEMM \
     && rm -rf /tmp/FlexGEMM
 
-# Install flash-attn from pre-built wheel (v2.8.3 for CUDA 12.8 + PyTorch 2.8)
+# Install flash-attn from pre-built wheel (v2.7.4 for CUDA 12.6 + PyTorch 2.6)
 RUN pip install --no-cache-dir \
-    https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.7.16/flash_attn-2.8.3%2Bcu128torch2.8-cp311-cp311-linux_x86_64.whl
+    https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.0.8/flash_attn-2.7.4+cu126torch2.6-cp311-cp311-linux_x86_64.whl
 
 # Clone TRELLIS.2
 RUN git clone --recursive https://github.com/microsoft/TRELLIS.2.git /app/TRELLIS.2
