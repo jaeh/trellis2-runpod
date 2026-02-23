@@ -44,13 +44,21 @@ pipeline = None
 def find_cached_model_path(model_name: str) -> str | None:
     """Find model path in RunPod's cache directory."""
     cache_name = model_name.replace("/", "--")
-    snapshots_dir = os.path.join(CACHE_DIR, f"models--{cache_name}", "snapshots")
+    cache_base = os.path.join(CACHE_DIR, f"models--{cache_name}")
+    snapshots_dir = os.path.join(cache_base, "snapshots")
 
     if os.path.exists(snapshots_dir):
         snapshots = os.listdir(snapshots_dir)
         if snapshots:
-            return os.path.join(snapshots_dir, snapshots[0])
+            cached_path = os.path.join(snapshots_dir, snapshots[0])
+            if os.path.isdir(cached_path):
+                return cached_path
     return None
+
+
+def validate_cache_exists() -> bool:
+    """Check if HuggingFace cache is properly set up."""
+    return os.path.isdir(CACHE_DIR) and os.path.isdir(os.path.join(CACHE_DIR, "models--microsoft--TRELLIS.2-4B"))
 
 
 def load_model():
@@ -60,26 +68,44 @@ def load_model():
     if pipeline is not None:
         return pipeline
 
+    print("=" * 50)
     print("Loading TRELLIS.2 model...")
-    start_time = time.time()
+    print("=" * 50)
+
+    hf_token = os.environ.get("HF_TOKEN")
+    if not hf_token:
+        raise RuntimeError(
+            "HF_TOKEN environment variable is not set. "
+            "Set HF_TOKEN with your HuggingFace token to access microsoft/TRELLIS.2-4B. "
+            "Get a token at https://huggingface.co/settings/tokens"
+        )
+
+    print(f"HF_TOKEN: {'set' if hf_token else 'not set'} (length: {len(hf_token) if hf_token else 0})")
+    print(f"HuggingFace token type: {type(hf_token)}")
+
+    os.environ["HF_HOME"] = CACHE_DIR
+    os.environ["HUGGINGFACE_HUB_CACHE"] = CACHE_DIR
+
+    print(f"Model ID: {HF_MODEL_ID}")
+    print(f"Cache dir: {CACHE_DIR}")
+    print(f"Cache dir exists: {os.path.exists(CACHE_DIR)}")
+
+    cached_path = find_cached_model_path(HF_MODEL_ID)
+    print(f"Cached path found: {cached_path}")
 
     from trellis2.pipelines import Trellis2ImageTo3DPipeline
 
-    # Check RunPod's cache first
-    cached_path = find_cached_model_path(HF_MODEL_ID)
-
-    if cached_path:
+    if cached_path and validate_cache_exists():
         print(f"Loading from RunPod cache: {cached_path}")
-        pipeline = Trellis2ImageTo3DPipeline.from_pretrained(cached_path)
+        print(f"Cache contents: {os.listdir(cached_path) if os.path.exists(cached_path) else 'N/A'}")
+        pipeline = Trellis2ImageTo3DPipeline.from_pretrained(cached_path, token=hf_token)
     else:
-        print(f"Model not in cache, downloading: {HF_MODEL_ID}")
-        pipeline = Trellis2ImageTo3DPipeline.from_pretrained(HF_MODEL_ID)
+        print(f"Model not in cache, downloading from HuggingFace...")
+        pipeline = Trellis2ImageTo3DPipeline.from_pretrained(HF_MODEL_ID, token=hf_token)
 
     pipeline.cuda()
 
-    elapsed = time.time() - start_time
-    print(f"Model loaded in {elapsed:.2f}s")
-
+    print("Model loaded successfully on GPU")
     return pipeline
 
 
