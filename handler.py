@@ -43,22 +43,35 @@ pipeline = None
 
 def find_cached_model_path(model_name: str) -> str | None:
     """Find model path in RunPod's cache directory."""
+    if not os.path.isdir(CACHE_DIR):
+        print(f"Cache dir does not exist: {CACHE_DIR}")
+        return None
+    
     cache_name = model_name.replace("/", "--")
     cache_base = os.path.join(CACHE_DIR, f"models--{cache_name}")
+    
+    if not os.path.isdir(cache_base):
+        print(f"Cache base does not exist: {cache_base}")
+        return None
+    
     snapshots_dir = os.path.join(cache_base, "snapshots")
-
-    if os.path.exists(snapshots_dir):
-        snapshots = os.listdir(snapshots_dir)
-        if snapshots:
-            cached_path = os.path.join(snapshots_dir, snapshots[0])
-            if os.path.isdir(cached_path):
-                return cached_path
+    
+    if not os.path.isdir(snapshots_dir):
+        print(f"Snapshots dir does not exist: {snapshots_dir}")
+        return None
+    
+    snapshots = os.listdir(snapshots_dir)
+    if not snapshots:
+        print("No snapshots found")
+        return None
+    
+    cached_path = os.path.join(snapshots_dir, snapshots[0])
+    if os.path.isdir(cached_path):
+        print(f"Found valid cache: {cached_path}")
+        return cached_path
+    
+    print(f"Cache path is not a directory: {cached_path}")
     return None
-
-
-def validate_cache_exists() -> bool:
-    """Check if HuggingFace cache is properly set up."""
-    return os.path.isdir(CACHE_DIR) and os.path.isdir(os.path.join(CACHE_DIR, "models--microsoft--TRELLIS.2-4B"))
 
 
 def load_model():
@@ -83,23 +96,16 @@ def load_model():
     os.environ["HF_HOME"] = CACHE_DIR
     os.environ["HUGGINGFACE_HUB_CACHE"] = CACHE_DIR
     os.environ["HF_TOKEN"] = hf_token
+    os.environ["HF_DATASETS_CACHE"] = CACHE_DIR
+    os.environ["TRANSFORMERS_CACHE"] = CACHE_DIR
 
-    print(f"Model ID: {HF_MODEL_ID}")
+    os.makedirs(CACHE_DIR, exist_ok=True)
     print(f"Cache dir: {CACHE_DIR}")
-    print(f"Cache dir exists: {os.path.exists(CACHE_DIR)}")
-
-    cached_path = find_cached_model_path(HF_MODEL_ID)
-    print(f"Cached path found: {cached_path}")
 
     from trellis2.pipelines import Trellis2ImageTo3DPipeline
 
-    if cached_path and validate_cache_exists():
-        print(f"Loading from RunPod cache: {cached_path}")
-        print(f"Cache contents: {os.listdir(cached_path) if os.path.exists(cached_path) else 'N/A'}")
-        pipeline = Trellis2ImageTo3DPipeline.from_pretrained(cached_path)
-    else:
-        print(f"Model not in cache, downloading from HuggingFace...")
-        pipeline = Trellis2ImageTo3DPipeline.from_pretrained(HF_MODEL_ID)
+    print(f"Downloading/loading model from HuggingFace: {HF_MODEL_ID}")
+    pipeline = Trellis2ImageTo3DPipeline.from_pretrained(HF_MODEL_ID)
 
     pipeline.cuda()
 
